@@ -27,7 +27,6 @@ Tired of opening four browser tabs to check on your storage nodes? This little P
 
 ---
 
-
 ## 🚀 Quick Start
 
 ### Requirements
@@ -84,11 +83,11 @@ brew install python3
 
 Grab `storj-monitor.py` from this repo and save it somewhere convenient (e.g. Desktop).
 
-**3. Run it:**
+**3. Run it (foreground, with console):**
 
 ```bash
 # Windows
-Start-Process py -ArgumentList "storj-monitor.py" -WindowStyle Hidden
+py storj-monitor.py
 
 # Linux / macOS
 python3 storj-monitor.py
@@ -133,38 +132,48 @@ NODE_HOST = "127.0.0.1" # Where your nodes are running
 
 ---
 
-## 🔁 Running it permanently
+## 🔁 Running in the background
 
-By default, closing the terminal stops the script. Here's how to keep it running in the background:
+By default, the script stops when you close the terminal. Here's how to keep it running in the background so you can close PowerShell/terminal and it keeps going.
 
-### Windows — easy mode (no console)
+### Windows — recommended method
 
-1. Press `Win+R`, type `shell:startup`, hit Enter
-2. Right-click in the folder → **New** → **Shortcut**
-3. Set target to:
-   ```
-   Start-Process py -ArgumentList "storj-monitor.py" -WindowStyle Hidden
-   ```
-4. Name it "Storj Monitor", click Finish
-
-`pyw` runs Python without a console window. The script will now auto-start with Windows and run silently in the background. To stop it, use Task Manager → find `pythonw.exe` → End Task.
-
-### Windows — robust (Scheduled Task with auto-restart)
-
-Open PowerShell **as Administrator** and run:
+Open PowerShell, navigate to your script folder, then start it as a hidden background process:
 
 ```powershell
-$action = New-ScheduledTaskAction -Execute "pyw" -Argument "C:\path\to\storj-monitor.py"
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable
-Register-ScheduledTask -TaskName "StorjMonitor" -Action $action -Trigger $trigger -Settings $settings -RunLevel Limited
+cd path\to\dashboard
+Start-Process py -ArgumentList "storj-monitor.py" -WindowStyle Hidden
 ```
 
-To remove later:
+The script now runs in the background with no visible window. You can safely close PowerShell — the dashboard stays up.
+
+**Check if it's running:**
 
 ```powershell
-Unregister-ScheduledTask -TaskName "StorjMonitor" -Confirm:$false
+Get-Process python -ErrorAction SilentlyContinue
 ```
+
+**Stop it when you're done:**
+
+```powershell
+Get-Process python | Stop-Process -Force
+```
+
+### Windows — one-click start (recommended for daily use)
+
+Create a `start.bat` file in your dashboard folder with this content:
+
+```bat
+@echo off
+cd /d "%~dp0"
+start "" /B py storj-monitor.py
+```
+
+Save it next to `storj-monitor.py`. From now on, just **double-click `start.bat`** — the script launches silently in the background. No PowerShell needed.
+
+> 💡 The `/B` flag launches without a new window; `%~dp0` ensures it always runs from the correct folder.
+
+You can also create a desktop shortcut: right-click `start.bat` → **Send to** → **Desktop (create shortcut)**.
 
 ### Linux — systemd service
 
@@ -185,11 +194,12 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-Then:
+Then enable and start it:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now storj-monitor
+sudo systemctl status storj-monitor    # check it's running
 ```
 
 ### macOS — launchd
@@ -260,6 +270,27 @@ It calls these standard Storj Node API endpoints:
 </details>
 
 <details>
+<summary><b>Browser shows ERR_EMPTY_RESPONSE or ERR_CONNECTION_REFUSED</b></summary>
+
+Usually means either nothing is running on port 8080, or multiple instances are conflicting.
+
+**Fix:** kill all Python processes and start cleanly:
+
+```powershell
+Get-Process python*,pythonw* -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+Wait a few seconds, then start the script again. Verify only one process listens on the port:
+
+```powershell
+netstat -ano | findstr :8080
+```
+
+You should see exactly one line with `LISTENING` (German Windows shows `ABHÖREN`).
+
+</details>
+
+<details>
 <summary><b>"Address already in use" on startup</b></summary>
 
 Port 8080 is taken by another program. Edit `storj-monitor.py` and change `LISTEN_PORT = 8080` to something else (e.g. `8090`), then run again.
@@ -277,6 +308,25 @@ The Storj API returns earnings values in slightly different scales depending on 
 <summary><b>"py: command not found" on Windows</b></summary>
 
 Either install Python via `winget install Python.Python.3.13`, or use `python` instead of `py`. After installing, **close and reopen** PowerShell.
+
+If you only have the Python install manager but no Python runtime yet, run:
+
+```powershell
+py install default
+```
+
+</details>
+
+<details>
+<summary><b>Background start with pyw doesn't work on Windows</b></summary>
+
+If `Start-Process pyw ...` results in no working dashboard, use `py` with hidden window instead:
+
+```powershell
+Start-Process py -ArgumentList "storj-monitor.py" -WindowStyle Hidden
+```
+
+This is the same effect (no visible console, runs in background) but more reliable across systems.
 
 </details>
 
