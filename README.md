@@ -143,7 +143,7 @@ By default, closing the terminal stops the script. Here's how to keep it running
 2. Right-click in the folder → **New** → **Shortcut**
 3. Set target to:
    ```
-   pyw "C:\path\to\storj-monitor.py"
+   Start-Process py -ArgumentList "storj-monitor.py" -WindowStyle Hidden
    ```
 4. Name it "Storj Monitor", click Finish
 
