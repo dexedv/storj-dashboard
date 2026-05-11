@@ -25,6 +25,11 @@ Tired of opening four browser tabs to check on your storage nodes? This little P
 - 🔒 **100% local** — your data never leaves your machine
 - 🪶 **Zero dependencies** — pure Python standard library, no `pip install` needed
 
+
+<img width="1727" height="1210" alt="024f49b4f08d2297f510867f32c08323" src="https://github.com/user-attachments/assets/4ca8904c-f0b5-48f0-acd5-9d030cf6563a" />
+
+
+
 ---
 
 ## 🚀 Quick Start
