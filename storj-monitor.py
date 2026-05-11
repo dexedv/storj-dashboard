@@ -127,14 +127,34 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     background: linear-gradient(135deg, rgba(247, 201, 72, 0.08), rgba(247, 201, 72, 0.02));
     border: 1px solid rgba(247, 201, 72, 0.2);
     border-radius: 6px; padding: 14px 16px; margin-bottom: 14px;
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  }
+
+  .uptime-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg-deep); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px; margin-bottom: 14px;
+  }
+  .uptime-main { display: flex; align-items: center; gap: 10px; }
+  .uptime-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; color: var(--text-faint); text-transform: uppercase;
+  }
+  .uptime-value {
+    font-family: 'JetBrains Mono', monospace; font-size: 14px;
+    font-weight: 700; color: var(--accent);
+  }
+  .uptime-health {
+    display: flex; align-items: center; gap: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    font-weight: 500;
   }
   .earn-item { display: flex; flex-direction: column; gap: 3px; }
   .earn-item .label {
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
     letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-dim);
   }
-  .earn-item .value { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: var(--gold); }
+  .earn-item .value { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; color: var(--gold); }
   .earn-item .sub { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-faint); }
 
   .disk-block {
@@ -295,11 +315,13 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   <div class="totals" id="totals">
     <div class="total-item"><div class="label">Nodes Online</div><div class="value" id="t-online">– <span class="unit">/ –</span></div></div>
+    <div class="total-item"><div class="label">⌀ Uptime</div><div class="value" id="t-uptime">– <span class="unit">Tage</span></div></div>
     <div class="total-item"><div class="label">Disk Total</div><div class="value" id="t-total">– <span class="unit">TB</span></div></div>
     <div class="total-item"><div class="label">Disk Used</div><div class="value" id="t-used">– <span class="unit">TB</span></div></div>
     <div class="total-item"><div class="label">Disk Free</div><div class="value" id="t-avail">– <span class="unit">TB</span></div></div>
     <div class="total-item"><div class="label">Bandwidth (Monat)</div><div class="value" id="t-bw">– <span class="unit">GB</span></div></div>
-    <div class="total-item"><div class="label">Earnings (Monat)</div><div class="value earn" id="t-earn">– <span class="unit">USD</span></div></div>
+    <div class="total-item"><div class="label">Earnings bisher</div><div class="value earn" id="t-earn">– <span class="unit">USD</span></div></div>
+    <div class="total-item"><div class="label">↗ Hochrechnung</div><div class="value earn" id="t-earn-proj">– <span class="unit">USD</span></div></div>
     <div class="total-item"><div class="label">Held Amount</div><div class="value earn" id="t-held">– <span class="unit">USD</span></div></div>
     <div class="total-item"><div class="label">Earnings (Total)</div><div class="value earn" id="t-earn-total">– <span class="unit">USD</span></div></div>
   </div>
@@ -351,6 +373,46 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return null;
     return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  function formatUptime(dateStr) {
+    if (!dateStr) return { text: '–', short: '–', days: null };
+    const start = new Date(dateStr);
+    if (isNaN(start.getTime())) return { text: '–', short: '–', days: null };
+    const ms = Date.now() - start.getTime();
+    const totalSec = Math.floor(ms / 1000);
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+
+    let text;
+    if (days > 0) text = `${days}d ${hours}h ${mins}m`;
+    else if (hours > 0) text = `${hours}h ${mins}m`;
+    else text = `${mins}m`;
+
+    const short = days > 0 ? `${days}d` : `${hours}h`;
+    return { text, short, days, hours, mins };
+  }
+
+  function timeSince(dateStr) {
+    if (!dateStr) return '–';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '–';
+    const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (sec < 60) return `vor ${sec}s`;
+    if (sec < 3600) return `vor ${Math.floor(sec/60)}min`;
+    if (sec < 86400) return `vor ${Math.floor(sec/3600)}h`;
+    return `vor ${Math.floor(sec/86400)}d`;
+  }
+
+  function projectedMonthEnd(currentEarnings) {
+    // Hochrechnung: was wird am Monatsende sein, wenn das aktuelle Tempo so weitergeht?
+    if (!currentEarnings || currentEarnings <= 0) return 0;
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    if (dayOfMonth < 1) return currentEarnings;
+    return (currentEarnings / dayOfMonth) * daysInMonth;
   }
 
   async function fetchNode(port) {
@@ -471,12 +533,18 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
 
   function renderEarnings(earn) {
+    const projected = projectedMonthEnd(earn.current);
     return `
       <div class="earnings-block">
         <div class="earn-item">
           <span class="label">⌬ Aktueller Monat</span>
           <span class="value">$${fmtUSD(earn.current)}</span>
-          <span class="sub">geschätzt</span>
+          <span class="sub">bisher</span>
+        </div>
+        <div class="earn-item">
+          <span class="label">↗ Hochrechnung</span>
+          <span class="value">$${fmtUSD(projected)}</span>
+          <span class="sub">am Monatsende</span>
         </div>
         <div class="earn-item">
           <span class="label">Held Amount</span>
@@ -543,9 +611,30 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     const nodeId = d.nodeID || '–';
     const upToDate = d.upToDate ? '<span style="color: var(--accent)">●</span> aktuell' : '<span style="color: var(--warning)">●</span> Update verfügbar';
     const quic = d.quicStatus === 'OK' ? '<span style="color: var(--accent)">QUIC OK</span>' : `<span style="color: var(--warning)">QUIC ${d.quicStatus || '?'}</span>`;
-    const lastPing = d.lastPinged ? new Date(d.lastPinged).toLocaleString('de-DE') : '–';
-    const age = d.startedAt ? daysSince(d.startedAt) : null;
-    const lastUpdate = d.lastQuicPingedAt ? new Date(d.lastQuicPingedAt).toLocaleTimeString('de-DE') : '–';
+    const lastPing = d.lastPinged ? timeSince(d.lastPinged) : '–';
+
+    // Uptime: bevorzuge startedAt, dann lastQuicPingedAt als Fallback
+    const uptimeData = formatUptime(d.startedAt);
+    const startedAtFull = d.startedAt ? new Date(d.startedAt).toLocaleString('de-DE') : '–';
+
+    // Satellite stats
+    const disqCount = sats.filter(s => s.disqualified).length;
+    const suspCount = sats.filter(s => s.suspended).length;
+    const healthySats = sats.length - disqCount - suspCount;
+
+    // Health-Indikator: alle Satelliten gut?
+    let healthIcon = '✓';
+    let healthColor = 'var(--accent)';
+    let healthText = 'gesund';
+    if (disqCount > 0) {
+      healthIcon = '✗';
+      healthColor = 'var(--danger)';
+      healthText = `${disqCount} disqualifiziert`;
+    } else if (suspCount > 0) {
+      healthIcon = '⚠';
+      healthColor = 'var(--warning)';
+      healthText = `${suspCount} suspendiert`;
+    }
 
     return `
       <div class="node">
@@ -562,6 +651,17 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
           </div>
         </div>
 
+        <div class="uptime-bar">
+          <div class="uptime-main">
+            <span class="uptime-label">⏱ UPTIME</span>
+            <span class="uptime-value">${uptimeData.text}</span>
+          </div>
+          <div class="uptime-health" style="color: ${healthColor}">
+            <span style="font-size: 14px;">${healthIcon}</span>
+            <span>${healthText}</span>
+          </div>
+        </div>
+
         ${renderEarnings(earn)}
 
         ${renderDiskBlock(d)}
@@ -575,16 +675,16 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
         <div class="meta-grid">
           <div class="meta-item">
-            <span class="lbl">Node-Alter</span>
-            <span class="val">${age !== null ? age + ' Tage' : '–'}</span>
+            <span class="lbl">Gestartet</span>
+            <span class="val" title="${startedAtFull}">${startedAtFull}</span>
           </div>
           <div class="meta-item">
-            <span class="lbl">Satelliten</span>
-            <span class="val">${sats.length} verbunden</span>
+            <span class="lbl">Satelliten gesund</span>
+            <span class="val">${healthySats} / ${sats.length}</span>
           </div>
           <div class="meta-item">
-            <span class="lbl">Letztes Update</span>
-            <span class="val">${lastUpdate}</span>
+            <span class="lbl">Letzter Kontakt</span>
+            <span class="val">${lastPing}</span>
           </div>
         </div>
 
@@ -596,6 +696,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     const okResults = results.filter(r => r.ok);
     let totalUsed = 0, totalAvail = 0, totalTrash = 0, totalBw = 0;
     let totalEarn = 0, totalHeld = 0, totalAllTime = 0;
+    let uptimeSum = 0, uptimeCount = 0;
 
     okResults.forEach(r => {
       totalUsed += r.dash.diskSpace?.used || 0;
@@ -606,16 +707,26 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       totalEarn += earn.current;
       totalHeld += earn.held;
       totalAllTime += earn.total;
+
+      const ut = formatUptime(r.dash.startedAt);
+      if (ut.days !== null) {
+        uptimeSum += ut.days + (ut.hours || 0) / 24;
+        uptimeCount++;
+      }
     });
 
     const totalAlloc = totalUsed + totalAvail + totalTrash;
+    const totalProjected = projectedMonthEnd(totalEarn);
+    const avgUptime = uptimeCount > 0 ? (uptimeSum / uptimeCount) : 0;
 
     document.getElementById('t-online').innerHTML = `${okResults.length} <span class="unit">/ ${results.length}</span>`;
+    document.getElementById('t-uptime').innerHTML = `${avgUptime.toFixed(1)} <span class="unit">Tage</span>`;
     document.getElementById('t-total').innerHTML = `${fmtBytesAs(totalAlloc, 'TB').toFixed(2)} <span class="unit">TB</span>`;
     document.getElementById('t-used').innerHTML = `${fmtBytesAs(totalUsed, 'TB').toFixed(2)} <span class="unit">TB</span>`;
     document.getElementById('t-avail').innerHTML = `${fmtBytesAs(totalAvail, 'TB').toFixed(2)} <span class="unit">TB</span>`;
     document.getElementById('t-bw').innerHTML = `${fmtBytesAs(totalBw, 'GB').toFixed(1)} <span class="unit">GB</span>`;
     document.getElementById('t-earn').innerHTML = `$${fmtUSD(totalEarn)} <span class="unit">USD</span>`;
+    document.getElementById('t-earn-proj').innerHTML = `$${fmtUSD(totalProjected)} <span class="unit">USD</span>`;
     document.getElementById('t-held').innerHTML = `$${fmtUSD(totalHeld)} <span class="unit">USD</span>`;
     document.getElementById('t-earn-total').innerHTML = `$${fmtUSD(totalAllTime)} <span class="unit">USD</span>`;
   }
