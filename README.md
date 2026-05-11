@@ -88,7 +88,7 @@ Grab `storj-monitor.py` from this repo and save it somewhere convenient (e.g. De
 
 ```bash
 # Windows
-py storj-monitor.py
+pyw storj-monitor.py
 
 # Linux / macOS
 python3 storj-monitor.py
