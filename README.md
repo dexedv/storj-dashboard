@@ -88,7 +88,7 @@ Grab `storj-monitor.py` from this repo and save it somewhere convenient (e.g. De
 
 ```bash
 # Windows
-pyw storj-monitor.py
+Start-Process py -ArgumentList "storj-monitor.py" -WindowStyle Hidden
 
 # Linux / macOS
 python3 storj-monitor.py
